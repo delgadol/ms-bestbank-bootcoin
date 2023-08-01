@@ -69,6 +69,11 @@
 		  <groupId>org.springframework.boot</groupId>
 		  <artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>com.bestbank.commons</groupId>
+			<artifactId>com-bestbank-commons</artifactId>
+			<version>1.0.0</version>
+		</dependency>
 	</dependencies>
 	<dependencyManagement>
 		<dependencies>

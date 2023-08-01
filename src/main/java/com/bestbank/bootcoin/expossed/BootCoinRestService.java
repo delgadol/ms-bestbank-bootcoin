@@ -2,11 +2,12 @@ package com.bestbank.bootcoin.expossed;
 
 import com.bestbank.bootcoin.bussiness.dto.req.BootCoinRegReq;
 import com.bestbank.bootcoin.bussiness.dto.req.BootCoinTransAuthReq;
-import com.bestbank.bootcoin.bussiness.dto.req.BootCoinTransDelReq;
 import com.bestbank.bootcoin.bussiness.dto.req.BootCoinTransRegReq;
-import com.bestbank.bootcoin.bussiness.dto.res.BootCoinRegRes;
+import com.bestbank.bootcoin.bussiness.dto.res.BootCoinNotRes;
 import com.bestbank.bootcoin.bussiness.dto.res.BootCoinTransRes;
+import com.bestbank.bootcoin.bussiness.services.BootCointOperationService;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,17 +23,20 @@ import reactor.core.publisher.Mono;
 @Validated
 public class BootCoinRestService {
   
+  @Autowired
+  private BootCointOperationService servBootCoin;
+  
   @PostMapping("/cuentas")
-  public Mono<BootCoinRegRes> postAccountRegister(
+  public Mono<BootCoinNotRes> postAccountRegister(
       @Valid @RequestBody BootCoinRegReq bootCoinRegReq) {
-    return null;
+    return servBootCoin.postAccountRegister(bootCoinRegReq);
   }
   
   
   @PostMapping("/transacciones")
-  public Mono<BootCoinTransRes> postTransaccionRegister(
+  public Mono<BootCoinNotRes> postTransaccionRegister(
       @Valid @RequestBody BootCoinTransRegReq transaccionRegReq) {
-    return null;
+    return servBootCoin.postTransaccionRegister(transaccionRegReq);
   } 
   
   @PutMapping("/transacciones/{idTransaccion}/autorizaciones")
@@ -43,10 +47,9 @@ public class BootCoinRestService {
   }
   
   @DeleteMapping("/transacciones/{idTransaccion}")
-  public Mono<BootCoinTransRes> delTransacciones(
-      @PathVariable(name = "idTransaccion") String idTransaccion, 
-      @Valid @RequestBody BootCoinTransDelReq transaccionDelReq) {
-    return null;
+  public Mono<BootCoinNotRes> delTransacciones(
+      @PathVariable(name = "idTransaccion") String idTransaccion) {
+    return servBootCoin.delTransacciones(idTransaccion);
     
   }
   

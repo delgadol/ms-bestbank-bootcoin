@@ -5,8 +5,11 @@ import com.bestbank.commons.tipos.TipoDocumento;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import lombok.Data;
 
+@Data
 public class BootCoinRegReq {
+  
   @NotNull(message = "Tipo de Cliente requerido")
   private TipoCliente tipoCliente;
   
@@ -29,6 +32,9 @@ public class BootCoinRegReq {
   private String emailPersona;
   
   @NotNull(message = "Es cliente Monedero")
-  private Integer indMonedero; 
+  private Integer indMonedero;
+  
+  @NotNull(message = "Numero de Cuenta Requerida")
+  private String codCuentaOperaciones;
 
 }
