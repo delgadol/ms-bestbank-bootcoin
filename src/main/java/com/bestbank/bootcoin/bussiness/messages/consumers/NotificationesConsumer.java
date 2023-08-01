@@ -9,7 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class NotificationesConsumer {
   
-  @KafkaListener( topics = "notificaciones-publicada", groupId = "group_id")
+  @KafkaListener( topics = "bc-notificaciones-publicada", groupId = "group_id")
   public void regitryConsumerFn(String message) {
     log.info("==========================");
     log.info(String.format("%s", message));

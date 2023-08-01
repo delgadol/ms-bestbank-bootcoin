@@ -1,10 +1,8 @@
 package com.bestbank.bootcoin.expossed;
 
 import com.bestbank.bootcoin.bussiness.dto.req.BootCoinRegReq;
-import com.bestbank.bootcoin.bussiness.dto.req.BootCoinTransAuthReq;
 import com.bestbank.bootcoin.bussiness.dto.req.BootCoinTransRegReq;
 import com.bestbank.bootcoin.bussiness.dto.res.BootCoinNotRes;
-import com.bestbank.bootcoin.bussiness.dto.res.BootCoinTransRes;
 import com.bestbank.bootcoin.bussiness.services.BootCointOperationService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,10 +38,9 @@ public class BootCoinRestService {
   } 
   
   @PutMapping("/transacciones/{idTransaccion}/autorizaciones")
-  public Mono<BootCoinTransRes> putTransaccionAutorizar(
-      @PathVariable(name = "idTransaccion") String idTransaccion, 
-      @Valid @RequestBody BootCoinTransAuthReq transaccionAuthReq) {
-    return null;
+  public Mono<BootCoinNotRes> putTransaccionAutorizar(
+      @PathVariable(name = "idTransaccion") String idTransaccion) {
+    return servBootCoin.putTransaccionAutorizar(idTransaccion);
   }
   
   @DeleteMapping("/transacciones/{idTransaccion}")

@@ -1,15 +1,17 @@
 package com.bestbank.bootcoin.bussiness.services.impl;
 
 import com.bestbank.bootcoin.bussiness.dto.req.BootCoinRegReq;
-import com.bestbank.bootcoin.bussiness.dto.req.BootCoinTransAuthReq;
 import com.bestbank.bootcoin.bussiness.dto.req.BootCoinTransRegReq;
 import com.bestbank.bootcoin.bussiness.dto.res.BootCoinNotRes;
 import com.bestbank.bootcoin.bussiness.messages.dto.clientes.ClienteBrokerReq;
 import com.bestbank.bootcoin.bussiness.messages.dto.clientes.ClienteBrokerRes;
 import com.bestbank.bootcoin.bussiness.messages.dto.productos.ProductoBrokerReq;
 import com.bestbank.bootcoin.bussiness.messages.dto.productos.ProductoBrokerRes;
+import com.bestbank.bootcoin.bussiness.messages.dto.transacciones.InfoTransaccionBrokerDualReq;
+import com.bestbank.bootcoin.bussiness.messages.dto.transacciones.TransaccionBrokerRes;
 import com.bestbank.bootcoin.bussiness.messages.producers.ClientesRegistrarBcoinProducer;
 import com.bestbank.bootcoin.bussiness.messages.producers.ProductosRegistrarBcoinProducer;
+import com.bestbank.bootcoin.bussiness.messages.producers.TransaccionesRegistrarBcoinProducer;
 import com.bestbank.bootcoin.bussiness.services.BootCointOperationService;
 import com.bestbank.bootcoin.bussiness.utils.ApplicationConst;
 import com.bestbank.bootcoin.bussiness.utils.EstadoTransBootCoin;
@@ -17,6 +19,8 @@ import com.bestbank.bootcoin.domain.model.BootCoinAccountData;
 import com.bestbank.bootcoin.domain.model.BootCoinTransaccionData;
 import com.bestbank.bootcoin.domain.repository.BootCoinTransaccionRespository;
 import com.bestbank.bootcoin.domain.repository.BootCointCtrlAppRespository;
+import com.bestbank.commons.tipos.ResultadoTransaccion;
+import com.bestbank.commons.tipos.TipoOperacion;
 import com.bestbank.commons.tipos.TipoProducto;
 import com.bestbank.commons.utils.BankFnUtils;
 import com.bestbank.commons.utils.ModelMapperUtils;
@@ -40,7 +44,11 @@ public class BootCointOperationServiceImpl implements BootCointOperationService{
   
   @Autowired
   private ProductosRegistrarBcoinProducer servProductos;
-
+  
+  @Autowired
+  private TransaccionesRegistrarBcoinProducer servMov;
+  
+  
   @Override
   public Mono<BootCoinNotRes> postAccountRegister(BootCoinRegReq bootCoinRegReq) {
     BootCoinAccountData nuevaCuenta = ModelMapperUtils.map(bootCoinRegReq,
@@ -183,12 +191,134 @@ public class BootCointOperationServiceImpl implements BootCointOperationService{
         );
   }
 
-  @Override
-  public Mono<BootCoinNotRes> putTransaccionAutorizar(String idTransaccion, 
-      BootCoinTransAuthReq transaccionAuthReq) {
-    // TODO Auto-generated method stub
-    return null;
+  private InfoTransaccionBrokerDualReq transaccionMsgReq(BootCoinTransaccionData data,
+      TipoOperacion tipoOperacion, Boolean onRollBak) {
+    InfoTransaccionBrokerDualReq transaccion = new InfoTransaccionBrokerDualReq();
+    if (tipoOperacion.equals(TipoOperacion.CARGO)) {
+      if (Boolean.FALSE.equals(onRollBak)) {
+        transaccion.setCodPersona(data.getCodPersonaCargo());
+        transaccion.setIdProducto(data.getCodCuentaCargo());
+        transaccion.setIdProducto2(data.getCodCuentaAbono());
+        transaccion.setMontoOperacion(data.getMontoSoles());
+        transaccion.setTipoOperacion(tipoOperacion);
+        transaccion.setObservacionTransaccion(data.getId().concat("-BC"));
+      }else {
+        transaccion.setCodPersona(data.getCodPersonaAbono());
+        transaccion.setIdProducto(data.getCodCuentaAbono());
+        transaccion.setIdProducto2(data.getCodCuentaCargo());
+        transaccion.setMontoOperacion(data.getMontoSoles());
+        transaccion.setTipoOperacion(tipoOperacion);
+        transaccion.setObservacionTransaccion(data.getId().concat("-BC"));
+      }
+    } else {
+      transaccion.setCodPersona(data.getCodPersonaAbono());
+      transaccion.setIdProducto(data.getCodCuentaBootCoinCarga());
+      transaccion.setIdProducto2(data.getCodCuentaBootCoinAbono());
+      transaccion.setMontoOperacion(data.getMontoBootCoin());
+      transaccion.setTipoOperacion(tipoOperacion);
+      transaccion.setObservacionTransaccion(data.getId().concat("-BC"));
+    }
+    return transaccion;
   }
+  
+  @Override
+  public Mono<BootCoinNotRes> putTransaccionAutorizar(String idTransaccion) {
+    return repoTrans.findById(idTransaccion)
+        .filter(itemf1 -> itemf1.getIndEliminado().equals(0) 
+            && itemf1.getEstadoTransaccion().equals(EstadoTransBootCoin.COLOCADA))
+        .flatMap(item -> {
+          InfoTransaccionBrokerDualReq transaccion = 
+              transaccionMsgReq(item, TipoOperacion.CARGO, false);
+          transaccion.setCodCtrlBroker(
+              item.getId().concat(":").concat(ApplicationConst.CN_BC_TRANS_PAGOS));
+          servMov.enviarTransaccionesDualRegistrar(transaccion);
+          BootCoinTransaccionData itemMod = 
+              ModelMapperUtils.map(item, BootCoinTransaccionData.class);
+          itemMod.setEstadoTransaccion(EstadoTransBootCoin.APROBADA);
+          itemMod.setFechaAprobacion(BankFnUtils.getLegacyDateTimeNow());
+          itemMod.setFechaModificacion(BankFnUtils.getLegacyDateTimeNow());
+          return repoTrans.save(itemMod)
+              .flatMap(itemDb -> 
+              Mono.just(new BootCoinNotRes(itemDb.getId(), "Transaccion Colocada", 
+                  BankFnUtils.getLegacyDateTimeNow())
+                  ));
+        })
+        .switchIfEmpty( 
+            Mono.just(new BootCoinNotRes(idTransaccion, "Transaccion No Encontrada", 
+                BankFnUtils.getLegacyDateTimeNow())
+        ));
+  }
+  
+  
+  @Override
+  public Mono<BootCoinNotRes> putTransaccionPago(TransaccionBrokerRes transaccionRes) {
+    return repoTrans.findById(transaccionRes.getCodCtrlBroker())
+        .filter(itemf1 -> itemf1.getIndEliminado().equals(0))
+        .flatMap(item -> {
+          InfoTransaccionBrokerDualReq transaccion = 
+              transaccionMsgReq(item, TipoOperacion.ABONO, false);
+          transaccion.setCodCtrlBroker(
+              item.getId().concat(":").concat(ApplicationConst.CN_BC_TRANS_LIQUIDADOS));
+          BootCoinTransaccionData itemMod = 
+              ModelMapperUtils.map(item, BootCoinTransaccionData.class);
+          itemMod.setIdTransaccionCargo(transaccionRes.getCodControl());
+          if (transaccionRes.getResultadoTransaccion()
+              .equals(ResultadoTransaccion.APROBADA)) {
+            itemMod.setEstadoTransaccion(EstadoTransBootCoin.PAGADA);
+            servMov.enviarTransaccionesDualRegistrar(transaccion);
+          } else {
+            itemMod.setEstadoTransaccion(EstadoTransBootCoin.ANULADA);
+          }
+          itemMod.setFechaModificacion(BankFnUtils.getLegacyDateTimeNow());
+          return repoTrans.save(itemMod)
+              .flatMap(itemDb -> 
+              Mono.just(new BootCoinNotRes(itemDb.getId(), "Transaccion " + 
+                  itemDb.getEstadoTransaccion().toString(), 
+                  BankFnUtils.getLegacyDateTimeNow())
+                  ));
+        })
+        .switchIfEmpty( 
+            Mono.just(new BootCoinNotRes(transaccionRes.getCodCtrlBroker(), 
+                "Transaccion No Encontrada", 
+                BankFnUtils.getLegacyDateTimeNow())
+        ));
+  }
+
+  @Override
+  public Mono<BootCoinNotRes> putTransaccionLiquidacion(TransaccionBrokerRes transaccionRes) {
+    return repoTrans.findById(transaccionRes.getCodCtrlBroker())
+        .filter(itemf1 -> itemf1.getIndEliminado().equals(0))
+        .flatMap(item -> {
+          InfoTransaccionBrokerDualReq transaccion = 
+              transaccionMsgReq(item, TipoOperacion.CARGO, true);
+          transaccion.setCodCtrlBroker(
+              item.getId().concat(":").concat(ApplicationConst.CN_BC_TRANS_ROLLBACK));
+          BootCoinTransaccionData itemMod = 
+              ModelMapperUtils.map(item, BootCoinTransaccionData.class);
+          itemMod.setIdTransaccionAbono(transaccionRes.getCodControl());
+          if (transaccionRes.getResultadoTransaccion()
+              .equals(ResultadoTransaccion.APROBADA)) {
+            itemMod.setEstadoTransaccion(EstadoTransBootCoin.LIQUIDADA);            
+          } else {
+            servMov.enviarTransaccionesDualRegistrar(transaccion);
+            itemMod.setEstadoTransaccion(EstadoTransBootCoin.ANULADA);
+          }
+          itemMod.setFechaModificacion(BankFnUtils.getLegacyDateTimeNow());
+          return repoTrans.save(itemMod)
+              .flatMap(itemDb -> 
+              Mono.just(new BootCoinNotRes(itemDb.getId(), "Transaccion " + 
+                  itemDb.getEstadoTransaccion().toString(), 
+                  BankFnUtils.getLegacyDateTimeNow())
+                  ));
+        })
+        .switchIfEmpty( 
+            Mono.just(new BootCoinNotRes(transaccionRes.getCodCtrlBroker(), 
+                "Transaccion No Encontrada", 
+                BankFnUtils.getLegacyDateTimeNow())
+        ));
+  }
+  
+  
 
   @Override
   public Mono<BootCoinNotRes> delTransacciones(String idTransaccion) {
@@ -212,5 +342,7 @@ public class BootCointOperationServiceImpl implements BootCointOperationService{
                 BankFnUtils.getLegacyDateTimeNow())
         ));
   }
+
+
 
 }
